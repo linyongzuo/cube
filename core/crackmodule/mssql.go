@@ -1,53 +1,74 @@
 package crackmodule
 
 import (
+	"context"
 	"cube/config"
+	"cube/gologger"
 	"database/sql"
 	"fmt"
 	_ "github.com/denisenkom/go-mssqldb"
+	"time"
 )
 
 type Mssql struct {
 	*Crack
 }
 
-func (m Mssql) CrackName() string {
+func (m *Mssql) CrackName() string {
 	return "mssql"
 }
 
-func (m Mssql) CrackPort() string {
+func (m *Mssql) CrackPort() string {
 	return "1433"
 }
 
-func (m Mssql) CrackAuthUser() []string {
+func (m *Mssql) CrackAuthUser() []string {
 	return []string{"sa", "sql"}
 }
 
-func (m Mssql) CrackAuthPass() []string {
+func (m *Mssql) CrackAuthPass() []string {
 	return config.PASSWORDS
 }
 
-func (m Mssql) IsMutex() bool {
+func (m *Mssql) IsMutex() bool {
 	return false
 }
 
-func (m Mssql) CrackPortCheck() bool {
+func (m *Mssql) CrackPortCheck() bool {
 	return true
 }
 
-func (m Mssql) Exec() CrackResult {
+func (m *Mssql) Exec() CrackResult {
 	result := CrackResult{Crack: *m.Crack, Result: false, Err: nil}
-
-	dataSourceName := fmt.Sprintf("server=%v;port=%v;user id=%v;password=%v;database=%v", m.Ip,
-		m.Port, m.Auth.User, m.Auth.Password, "tempdb")
+	start := time.Now()
+	dataSourceName := fmt.Sprintf("sqlserver://%s:%s@%s:%s?database=master&connection+timeout=%d&encrypt=disable", m.Auth.User, m.Auth.Password, m.Ip,
+		m.Port, m.Timeout)
 	db, err := sql.Open("mssql", dataSourceName)
 	if err == nil {
 		defer db.Close()
-		err = db.Ping()
+		ctx, cancel := context.WithTimeout(context.Background(), time.Duration(m.Timeout)*time.Second)
+		defer cancel()
+		err = db.PingContext(ctx)
 		if err == nil {
 			result.Result = true
+			if len(m.Sql) != 0 {
+				for _, v := range m.Sql {
+					_, err = db.ExecContext(ctx, v)
+					if err != nil {
+						gologger.Infof("执行sql语句:%s 失败，数据库信息:%v,错误原因:%s", v, *m, err.Error())
+						break
+					} else {
+						gologger.Infof("执行sql语句:%s 成功，数据库信息:%v", v, *m)
+					}
+				}
+			}
+		} else {
+			result.Extra = err.Error()
 		}
+	} else {
+		result.Extra = err.Error()
 	}
+	result.CostTime = time.Now().Sub(start).Seconds()
 	return result
 }
 

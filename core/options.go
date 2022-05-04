@@ -14,6 +14,7 @@ type GlobalOption struct {
 	Verbose bool
 	Output  string
 	Delay   float64
+	Waiting bool
 }
 
 func NewGlobalOptions() *GlobalOption {

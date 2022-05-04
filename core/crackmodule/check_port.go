@@ -18,36 +18,60 @@ type IpAddr struct {
 }
 
 var (
-	mutex     sync.Mutex
-	AliveAddr []IpAddr
+	mutex        sync.Mutex
+	checkMapLock sync.Mutex
+	CheckMap     = map[string]IpAddr{}
+	AliveAddr    = map[string]IpAddr{}
 )
 
-func CheckPort(ctx context.Context, threadNum int, delay float64, ips []string, pluginNames []string, port string) []IpAddr {
+func CheckPort(ctx context.Context, threadNum int, delay float64, ips []string, pluginNames []string, port string, timeout int64) []IpAddr {
 	//指定插件端口的时候，只允许加载一个插件
 	var ipList []IpAddr
-
 	if len(port) > 0 {
 		for _, ip := range ips {
-			ipList = append(ipList, IpAddr{
+			key := fmt.Sprintf("%s:%s:%s", ip, port, pluginNames[0])
+			tmp := IpAddr{
 				Ip:         ip,
 				Port:       port,
 				PluginName: pluginNames[0],
-			})
+			}
+			checkMapLock.Lock()
+			if _, ok := CheckMap[key]; !ok {
+				CheckMap[key] = tmp
+				checkMapLock.Unlock()
+			} else {
+				checkMapLock.Unlock()
+				continue
+			}
+			ipList = append(ipList, tmp)
 		}
 	} else {
 		for _, plugin := range pluginNames {
 			for _, ip := range ips {
-				ipList = append(ipList, IpAddr{
+				crackPort := GetCrackPort(plugin)
+				tmp := IpAddr{
 					Ip:         ip,
-					Port:       GetCrackPort(plugin),
+					Port:       crackPort,
 					PluginName: plugin,
-				})
+				}
+				checkMapLock.Lock()
+				key := fmt.Sprintf("%s:%s:%s", ip, crackPort, plugin)
+				if _, ok := CheckMap[key]; !ok {
+					CheckMap[key] = tmp
+					checkMapLock.Unlock()
+				} else {
+					checkMapLock.Unlock()
+					continue
+				}
+				ipList = append(ipList, tmp)
 			}
 		}
 
 	}
-
-	var addrChan = make(chan IpAddr, threadNum*2)
+	if len(ipList) == 0 {
+		return []IpAddr{}
+	}
+	var addrChan = make(chan IpAddr, len(ipList)*2)
 	var wg sync.WaitGroup
 	wg.Add(len(ipList))
 
@@ -63,7 +87,17 @@ func CheckPort(ctx context.Context, threadNum int, delay float64, ips []string, 
 					}
 					if NeedPortCheck(addr.PluginName) || GetMutexStatus(addr.PluginName) {
 						//TCP的时候是需要先端口检查,UDP跳过
-						SaveAddr(check(addr))
+						alive, msg := NeedDatabaseCrack(addr, timeout)
+						if !alive {
+							alive = false
+							_, err := invalidFile.WriteString(fmt.Sprintf("错误的数据库IP地址:%s:%s,错误信息:%s\n", addr.Ip, addr.Port, msg))
+							if err != nil {
+								gologger.Warnf("写入文件失败:%s", err.Error())
+							}
+						} else {
+							gologger.Infof("正确的数据库地址: %s:%s", addr.Ip, addr.Port)
+						}
+						SaveAddr(alive, addr)
 					} else {
 						gologger.Debugf("skip port check for %s", addr.PluginName)
 						SaveAddr(true, addr)
@@ -84,7 +118,7 @@ func CheckPort(ctx context.Context, threadNum int, delay float64, ips []string, 
 	close(addrChan)
 	wg.Wait()
 
-	return AliveAddr
+	return GetAliveAddr()
 }
 
 func check(addr IpAddr) (bool, IpAddr) {
@@ -94,6 +128,7 @@ func check(addr IpAddr) (bool, IpAddr) {
 	if err == nil {
 		gologger.Infof("Open %s:%s", addr.Ip, addr.Port)
 		alive = true
+		//conn.Close()
 	}
 	return alive, addr
 }
@@ -108,9 +143,22 @@ func check(addr IpAddr) (bool, IpAddr) {
 //}
 
 func SaveAddr(alive bool, addr IpAddr) {
+	key := fmt.Sprintf("%s:%s:%s", addr.Ip, addr.Port, addr.PluginName)
+	mutex.Lock()
+	defer mutex.Unlock()
 	if alive {
-		mutex.Lock()
-		AliveAddr = append(AliveAddr, addr)
-		mutex.Unlock()
+		AliveAddr[key] = addr
 	}
+
+}
+
+func GetAliveAddr() []IpAddr {
+	mutex.Lock()
+	defer mutex.Unlock()
+	tmp := make([]IpAddr, 0)
+	for _, v := range AliveAddr {
+		tmp = append(tmp, v)
+	}
+	AliveAddr = map[string]IpAddr{}
+	return tmp
 }

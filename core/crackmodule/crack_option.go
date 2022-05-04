@@ -20,6 +20,8 @@ type CrackOption struct {
 	PassFile   string
 	Port       string
 	PluginName string
+	SqlFile    string
+	Timeout    string
 }
 
 func NewCrackOptions() *CrackOption {
@@ -82,6 +84,12 @@ func (cp *CrackOption) ParseAuth() []Auth {
 	return auths
 }
 
+func (cp *CrackOption) ParseSql() []string {
+	if len(cp.SqlFile) != 0 {
+		return pkg.FileReader(cp.SqlFile)
+	}
+	return []string{}
+}
 func (cp *CrackOption) ParseIP() []string {
 	var hosts []string
 	ip := cp.Ip
@@ -110,7 +118,9 @@ func (cp *CrackOption) ParsePort() bool {
 	}
 	return true
 }
-
+func (cp *CrackOption) GetTimeout() string {
+	return cp.Timeout
+}
 func opt2slice(str, file string) []string {
 	if len(str+file) == 0 {
 		gologger.Errorf("Provide login name(-l/-L) and login password(-p/-P)")

@@ -6,20 +6,46 @@ import (
 	"cube/gologger"
 	"fmt"
 	"github.com/spf13/cobra"
+	"os"
+	"os/signal"
+	"syscall"
+	"time"
 )
 
 var crackCli *cobra.Command
 
 func runCrack(cmd *cobra.Command, args []string) {
-	globalopts, opt, _ := parseCrackOptions()
+	globalOpts, opt, _ := parseCrackOptions()
 
 	if len(opt.User+opt.UserFile+opt.Pass+opt.PassFile) > 0 { //当使用自定义用户密码的时候，判断是否同时指定了User和Password
 		if len(opt.User)+len(opt.UserFile) == 0 || len(opt.Pass)+len(opt.PassFile) == 0 {
 			gologger.Errorf("Please set login name -l/-L and password -p/-P flag)")
 		}
 	}
+	// 如果是等待信号退出
 
-	crackmodule.StartCrack(opt, globalopts)
+	if globalOpts.Waiting {
+		ipCheckTicker := time.NewTicker(time.Second * 30)
+		go func() {
+			crackmodule.StartCrack(opt, globalOpts)
+			for {
+				<-ipCheckTicker.C
+				crackmodule.StartCrack(opt, globalOpts)
+			}
+		}()
+
+		c := make(chan os.Signal)
+		// 监听指定信号
+		signal.Notify(c, syscall.SIGHUP, syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT)
+		gologger.Info("启动定时监控ip文件")
+		<-c
+		ipCheckTicker.Stop()
+		crackmodule.Close(opt, globalOpts)
+		gologger.Error("收到退出程序命令")
+	} else {
+		crackmodule.StartCrack(opt, globalOpts)
+		crackmodule.Close(opt, globalOpts)
+	}
 }
 
 func parseCrackOptions() (*core.GlobalOption, *crackmodule.CrackOption, error) {
@@ -69,6 +95,14 @@ func parseCrackOptions() (*core.GlobalOption, *crackmodule.CrackOption, error) {
 	if err != nil {
 		return nil, nil, fmt.Errorf("invalid value for scan plugin: %w", err)
 	}
+	crackOption.Timeout, err = crackCli.Flags().GetString("timeout")
+	if err != nil {
+		return nil, nil, fmt.Errorf("invalid value for scan timeout: %w", err)
+	}
+	crackOption.SqlFile, err = crackCli.Flags().GetString("mssql-file")
+	if err != nil {
+		return nil, nil, fmt.Errorf("invalid value for scan mssql-file: %w", err)
+	}
 	return globalOpts, crackOption, nil
 }
 
@@ -96,6 +130,8 @@ cube crack -L user.txt -P pass.txt -s http://127.0.0.1:8080 -x phpmyadmin
 	crackCli.Flags().StringP("pass-file", "P", "", "login password file")
 	crackCli.Flags().StringP("port", "", "", "if the service is on a different default port, define it here")
 	crackCli.Flags().StringP("plugin", "x", "", "crack plugin")
+	crackCli.Flags().StringP("timeout", "t", "", "timeout")
+	crackCli.Flags().StringP("mssql-file", "m", "", "mssql-file")
 	if err := crackCli.MarkFlagRequired("plugin"); err != nil {
 		gologger.Errorf("error on marking flag as required: %v", err)
 	}

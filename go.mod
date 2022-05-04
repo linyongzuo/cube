@@ -6,11 +6,12 @@ require (
 	github.com/JKme/go-ntlmssp v1.2.6
 	github.com/JKme/gomanuf v1.0.1
 	github.com/denisenkom/go-mssqldb v0.12.0
-	github.com/go-sql-driver/mysql v1.6.0 // indirect
+	github.com/go-sql-driver/mysql v1.6.0
 	github.com/jlaffaye/ftp v0.0.0-20220301014342-212daf295f0e
 	github.com/lib/pq v1.10.4
 	github.com/malfunkt/iprange v0.9.0
 	github.com/olekukonko/tablewriter v0.0.5
+	github.com/panjf2000/ants/v2 v2.4.8
 	github.com/pkg/errors v0.9.1
 	github.com/sijms/go-ora/v2 v2.4.4
 	github.com/spf13/cobra v1.1.3

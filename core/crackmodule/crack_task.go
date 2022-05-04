@@ -11,9 +11,11 @@ import (
 	"cube/report"
 	"fmt"
 	"github.com/olekukonko/tablewriter"
+	ants "github.com/panjf2000/ants/v2"
 	"github.com/pkg/errors"
 	"io"
 	"os"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -23,6 +25,11 @@ var SuccessHash = struct {
 	sync.RWMutex
 	S map[string]bool
 }{S: make(map[string]bool)}
+
+var pool *ants.Pool
+var poolInit sync.Once
+var failedFile *os.File
+var invalidFile *os.File
 
 func MD5(s string) (m string) {
 	h := md5.New()
@@ -71,9 +78,9 @@ func CrackHelpTable() string {
 func SetResultMap(r CrackResult) {
 	var c string
 	if len(r.Extra) > 0 {
-		c = fmt.Sprintf("\nCRACK_PLUG: %s\nCRACK_PORT: %s\nCRACK_ADDR: %s\nCRACK_USER: %s\nCRACK_PASS: %s\nCRACKEXTRA: %s", r.Crack.Name, r.Crack.Port, r.Crack.Ip, r.Crack.Auth.User, r.Crack.Auth.Password, r.Extra)
+		//c = fmt.Sprintf("\n测试失败\n插件名称: %s\n插件端口: %s\n插件IP: %s\n用户: %s\n密码: %s\n错误信息: %s", r.Crack.Name, r.Crack.Port, r.Crack.Ip, r.Crack.Auth.User, r.Crack.Auth.Password, r.Extra)
 	} else {
-		c = fmt.Sprintf("\nCRACK_PLUG: %s\nCRACK_PORT: %s\nCRACK_ADDR: %s\nCRACK_USER: %s\nCRACK_PASS: %s", r.Crack.Name, r.Crack.Port, r.Crack.Ip, r.Crack.Auth.User, r.Crack.Auth.Password)
+		c = fmt.Sprintf("\n测试成功\n插件名称: %s\n插件端口: %s\n插件IP: %s\n用户: %s\n密码: %s", r.Crack.Name, r.Crack.Port, r.Crack.Ip, r.Crack.Auth.User, r.Crack.Auth.Password)
 	}
 
 	data := report.CsvCell{
@@ -108,13 +115,13 @@ func WaitThreadTimeout(wg *sync.WaitGroup, timeout time.Duration) bool {
 	}
 }
 
-func buildDefaultTasks(AliveIPS []IpAddr) (cracks []Crack) {
+func buildDefaultTasks(AliveIPS []IpAddr, timeout int64, sql []string) (cracks []Crack) {
 	cracks = make([]Crack, 0)
 	for _, addr := range AliveIPS {
 		authMaps := GetPluginAuthMap(addr.PluginName)
 		auths := authMaps[addr.PluginName]
 		for _, auth := range auths {
-			s := Crack{Ip: addr.Ip, Port: addr.Port, Auth: auth, Name: addr.PluginName}
+			s := Crack{Ip: addr.Ip, Port: addr.Port, Auth: auth, Name: addr.PluginName, Timeout: timeout, Sql: sql}
 			gologger.Debugf("build task: IP:%s  Port:%s  Login:%s  Pass:%s", s.Ip, s.Port, s.Auth.User, s.Auth.Password)
 			cracks = append(cracks, s)
 		}
@@ -122,11 +129,11 @@ func buildDefaultTasks(AliveIPS []IpAddr) (cracks []Crack) {
 	return cracks
 }
 
-func buildTasks(AliveIPS []IpAddr, auths []Auth) (cracks []Crack) {
+func buildTasks(AliveIPS []IpAddr, auths []Auth, timeout int64, sql []string) (cracks []Crack) {
 	cracks = make([]Crack, 0)
 	for _, addr := range AliveIPS {
 		for _, auth := range auths {
-			s := Crack{Ip: addr.Ip, Port: addr.Port, Auth: auth, Name: addr.PluginName}
+			s := Crack{Ip: addr.Ip, Port: addr.Port, Auth: auth, Name: addr.PluginName, Timeout: timeout, Sql: sql}
 			gologger.Debugf("build task: IP:%s  Port:%s  Login:%s  Pass:%s", s.Ip, s.Port, s.Auth.User, s.Auth.Password)
 			cracks = append(cracks, s)
 		}
@@ -135,9 +142,8 @@ func buildTasks(AliveIPS []IpAddr, auths []Auth) (cracks []Crack) {
 }
 
 func saveCrackResult(crackResult CrackResult) {
-
 	if crackResult.Result {
-		gologger.Debugf("Successful: IP:%s  Port:%s  Login:%s  Pass:%s", crackResult.Crack.Ip, crackResult.Crack.Port, crackResult.Crack.Auth.User, crackResult.Crack.Auth.Password)
+		gologger.Infof("Successful: IP:%s  Port:%s  Login:%s  Pass:%s", crackResult.Crack.Ip, crackResult.Crack.Port, crackResult.Crack.Auth.User, crackResult.Crack.Auth.Password)
 		k := fmt.Sprintf("%v-%v-%v", crackResult.Crack.Ip, crackResult.Crack.Port, crackResult.Crack.Name)
 		h := MakeTaskHash(k)
 		SetTaskHash(h)
@@ -145,7 +151,6 @@ func saveCrackResult(crackResult CrackResult) {
 		//fmt.Println(s1)
 		SetResultMap(crackResult)
 	}
-
 }
 
 func runSingleTask(ctx context.Context, crackTasksChan chan Crack, wg *sync.WaitGroup, delay float64) {
@@ -163,10 +168,16 @@ func runSingleTask(ctx context.Context, crackTasksChan chan Crack, wg *sync.Wait
 				wg.Done()
 				continue
 			}
-			ic := crackTask.NewICrack()
 			gologger.Debugf("cracking %s: IP:%s  Port:%s  Login:%s  Pass:%s", crackTask.Name, crackTask.Ip, crackTask.Port, crackTask.Auth.User, crackTask.Auth.Password)
+			ic := crackTask.NewICrack()
 			r := ic.Exec()
 			saveCrackResult(r)
+			if !r.Result {
+				_, err := failedFile.WriteString(fmt.Sprintf("测试失败,花费时间:%f,地址:%s:%d 用户名:%s,密码%s，失败原因:%s\n", r.CostTime, r.Crack.Ip, r.Crack.Port, r.Crack.Auth.User, r.Crack.Auth.Password, r.Extra))
+				if err != nil {
+					gologger.Warnf("write string failed:%s", err.Error())
+				}
+			}
 			wg.Done()
 
 			select {
@@ -178,6 +189,7 @@ func runSingleTask(ctx context.Context, crackTasksChan chan Crack, wg *sync.Wait
 }
 
 func StartCrack(opt *CrackOption, globalopt *core.GlobalOption) {
+
 	var (
 		crackPlugins []string
 		crackIPS     []string
@@ -187,6 +199,7 @@ func StartCrack(opt *CrackOption, globalopt *core.GlobalOption) {
 		delay        float64
 		aliveIPS     []IpAddr
 		fp           string
+		timeout      int64
 	)
 
 	ctx := context.Background()
@@ -194,13 +207,27 @@ func StartCrack(opt *CrackOption, globalopt *core.GlobalOption) {
 	delay = globalopt.Delay
 	threadNum = globalopt.Threads
 	fp = globalopt.Output
-
+	timeout, _ = strconv.ParseInt(opt.GetTimeout(), 10, 64)
+	if timeout == 0 {
+		timeout = 4
+	}
 	if delay > 0 {
 		//添加使用--delay选项的时候，强制单线程。现在还停留在想象中的攻击
 		threadNum = 1
 		gologger.Infof("Running in single thread mode when --delay is set")
 	}
-
+	poolInit.Do(func() {
+		pool, _ = ants.NewPool(threadNum)
+		var err error
+		failedFile, err = os.Create("测试失败.txt")
+		if err != nil {
+			gologger.Errorf("创建文件失败:%s", err.Error())
+		}
+		invalidFile, err = os.Create("非数据库地址.txt")
+		if err != nil {
+			gologger.Errorf("创建文件失败:%s", err.Error())
+		}
+	})
 	crackPlugins = opt.ParsePluginName()
 	if len(crackPlugins) == 0 {
 		gologger.Errorf("plug doesn't exist: %s", opt.PluginName)
@@ -223,26 +250,29 @@ func StartCrack(opt *CrackOption, globalopt *core.GlobalOption) {
 				gologger.Errorf("plugin is limited to single one when --port is set\n")
 			}
 		}
-		aliveIPS = CheckPort(ctx, threadNum, delay, crackIPS, crackPlugins, opt.Port)
+		aliveIPS = CheckPort(ctx, threadNum, delay, crackIPS, crackPlugins, opt.Port, timeout)
 	}
-	if len(crackIPS) == 0 {
-		gologger.Errorf("target service is missing, please set -s/-S")
+	if len(aliveIPS) == 0 {
+		gologger.Infof("没有检测到新增有效IP")
+		return
+	} else {
+		gologger.Infof("检测有效IP信息:%+v", aliveIPS)
 	}
-
+	sql := opt.ParseSql()
 	if len(opt.User+opt.UserFile+opt.Pass+opt.PassFile) > 0 {
 		crackAuths = opt.ParseAuth()
-		crackTasks = buildTasks(aliveIPS, crackAuths)
+		crackTasks = buildTasks(aliveIPS, crackAuths, timeout, sql)
 	} else {
-		crackTasks = buildDefaultTasks(aliveIPS)
+		crackTasks = buildDefaultTasks(aliveIPS, timeout, sql)
 	}
 
 	var wg sync.WaitGroup
 	taskChan := make(chan Crack, threadNum*2)
-
 	for i := 0; i < threadNum; i++ {
-		go runSingleTask(ctx, taskChan, &wg, delay)
+		go func() {
+			runSingleTask(ctx, taskChan, &wg, delay)
+		}()
 	}
-
 	for _, task := range crackTasks {
 		wg.Add(1)
 		taskChan <- task
@@ -280,4 +310,13 @@ func StartCrack(opt *CrackOption, globalopt *core.GlobalOption) {
 		}
 	}
 	GetFinishTime(t1)
+}
+
+func Close(opt *CrackOption, globalopt *core.GlobalOption) {
+	if failedFile != nil {
+		failedFile.Close()
+	}
+	if invalidFile != nil {
+		invalidFile.Close()
+	}
 }

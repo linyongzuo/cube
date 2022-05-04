@@ -39,13 +39,17 @@ func parseGlobalOptions() (*core.GlobalOption, error) {
 	if err != nil {
 		return nil, fmt.Errorf("invalid value for verbose: %w", err)
 	}
+	waiting, err := rootCmd.Flags().GetBool("waiting")
+	if err != nil {
+		return nil, fmt.Errorf("invalid value for waiting: %w", err)
+	}
 	if verbose {
 		gologger.InitLog("DEBUG")
 	} else {
 		gologger.InitLog("INFO")
 	}
 	globalopts.Verbose = verbose
-
+	globalopts.Waiting = waiting
 	return globalopts, nil
 }
 
@@ -55,4 +59,5 @@ func init() {
 	rootCmd.PersistentFlags().Float64P("delay", "d", 0, "Delay in random seconds between each TCP/UDP request")
 	rootCmd.PersistentFlags().StringP("output", "o", "", "Output file to write results to (eg. pwn.xlsx)")
 	rootCmd.PersistentFlags().BoolP("verbose", "v", false, "Verbose (Default error)")
+	rootCmd.PersistentFlags().BoolP("waiting", "w", false, "Waiting signal to exit")
 }

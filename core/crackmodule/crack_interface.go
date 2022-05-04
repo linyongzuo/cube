@@ -10,17 +10,20 @@ type Auth struct {
 	Password string
 }
 type Crack struct {
-	Ip   string
-	Port string
-	Auth Auth
-	Name string
+	Ip      string
+	Port    string
+	Auth    Auth
+	Name    string
+	Timeout int64
+	Sql     []string
 }
 
 type CrackResult struct {
-	Crack  Crack
-	Result bool
-	Extra  string
-	Err    error
+	Crack    Crack
+	Result   bool
+	Extra    string
+	Err      error
+	CostTime float64
 }
 
 var CrackKeys []string
@@ -98,6 +101,28 @@ func NeedPortCheck(s string) bool {
 	return ic.CrackPortCheck()
 }
 
+func NeedDatabaseCrack(addr IpAddr, timeout int64) (bool, string) {
+	c := NewCrack(addr.PluginName)
+	c.Port = addr.Port
+	c.Ip = addr.Ip
+	c.Auth.Password = "sa"
+	c.Auth.User = "sa"
+	c.Timeout = timeout
+	ic := c.NewICrack()
+
+	if ic.CrackName() == "mssql" {
+		result := ic.Exec()
+		if !result.Result {
+			return IsMssql(result.Extra), result.Extra
+		}
+		return result.Result, result.Extra
+	}
+	return true, ""
+}
+
+func IsMssql(errMsg string) bool {
+	return strings.Contains(errMsg, "login error")
+}
 func getPluginAuthUser(s string) []string {
 	c := NewCrack(s)
 	ic := c.NewICrack()
