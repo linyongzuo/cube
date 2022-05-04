@@ -47,7 +47,9 @@ func (f FtpCrack) Exec() CrackResult {
 	}
 	return result
 }
-
+func (f FtpCrack) CrackMatch() (bool, string) {
+	return true, ""
+}
 func init() {
 	AddCrackKeys("ftp")
 }

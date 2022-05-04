@@ -173,7 +173,7 @@ func runSingleTask(ctx context.Context, crackTasksChan chan Crack, wg *sync.Wait
 			r := ic.Exec()
 			saveCrackResult(r)
 			if !r.Result {
-				_, err := failedFile.WriteString(fmt.Sprintf("测试失败,花费时间:%f,地址:%s:%d 用户名:%s,密码%s，失败原因:%s\n", r.CostTime, r.Crack.Ip, r.Crack.Port, r.Crack.Auth.User, r.Crack.Auth.Password, r.Extra))
+				_, err := failedFile.WriteString(fmt.Sprintf("测试失败,花费时间:%f,地址:%s:%s 用户名:%s,密码%s，失败原因:%s\n", r.CostTime, r.Crack.Ip, r.Crack.Port, r.Crack.Auth.User, r.Crack.Auth.Password, r.Extra))
 				if err != nil {
 					gologger.Warnf("write string failed:%s", err.Error())
 				}

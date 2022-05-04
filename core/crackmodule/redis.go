@@ -68,6 +68,9 @@ func (r Redis) Exec() CrackResult {
 	}
 	return result
 }
+func (r Redis) CrackMatch() (bool, string) {
+	return true, ""
+}
 func readReply(conn net.Conn) (result string, err error) {
 	buf := make([]byte, 4096)
 	for {

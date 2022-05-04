@@ -107,7 +107,9 @@ func (j Jenkins) Exec() CrackResult {
 	}
 	return result
 }
-
+func (j Jenkins) CrackMatch() (bool, string) {
+	return true, ""
+}
 func init() {
 	AddCrackKeys("jenkins")
 }

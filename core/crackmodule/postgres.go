@@ -52,6 +52,10 @@ func (p Postgres) Exec() CrackResult {
 	return result
 }
 
+func (p Postgres) CrackMatch() (bool, string) {
+	return true, ""
+}
+
 func init() {
 	AddCrackKeys("postgres")
 }

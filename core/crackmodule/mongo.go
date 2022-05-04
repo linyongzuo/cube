@@ -48,7 +48,9 @@ func (m Mongo) Exec() CrackResult {
 	}
 	return result
 }
-
+func (m Mongo) CrackMatch() (bool, string) {
+	return true, ""
+}
 func init() {
 	AddCrackKeys("mongo")
 }

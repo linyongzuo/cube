@@ -36,6 +36,7 @@ type ICrack interface {
 	IsMutex() bool           //只能单独使用的插件，比如phpmyadmin
 	CrackPortCheck() bool    //插件是否需要端口检查，一般TCP需要，phpmyadmin类单独使用的不用
 	Exec() CrackResult       //运行插件
+	CrackMatch() (bool, string)
 }
 
 func AddCrackKeys(s string) {
@@ -109,15 +110,7 @@ func NeedDatabaseCrack(addr IpAddr, timeout int64) (bool, string) {
 	c.Auth.User = "sa"
 	c.Timeout = timeout
 	ic := c.NewICrack()
-
-	if ic.CrackName() == "mssql" {
-		result := ic.Exec()
-		if !result.Result {
-			return IsMssql(result.Extra), result.Extra
-		}
-		return result.Result, result.Extra
-	}
-	return true, ""
+	return ic.CrackMatch()
 }
 
 func IsMssql(errMsg string) bool {

@@ -62,7 +62,9 @@ func (s Smb) Exec() CrackResult {
 	}
 	return result
 }
-
+func (s Smb) CrackMatch() (bool, string) {
+	return true, ""
+}
 func init() {
 	AddCrackKeys("smb")
 }

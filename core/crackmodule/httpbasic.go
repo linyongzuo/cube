@@ -56,7 +56,9 @@ func (h HttpBasic) Exec() CrackResult {
 	}
 	return result
 }
-
+func (h HttpBasic) CrackMatch() (bool, string) {
+	return true, ""
+}
 func init() {
 	AddCrackKeys("httpbasic")
 }

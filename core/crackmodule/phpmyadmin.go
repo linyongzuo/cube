@@ -102,7 +102,9 @@ func (p Phpmyadmin) Exec() CrackResult {
 
 	return result
 }
-
+func (p Phpmyadmin) CrackMatch() (bool, string) {
+	return true, ""
+}
 func init() {
 	AddCrackKeys("phpmyadmin")
 }

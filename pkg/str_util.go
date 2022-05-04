@@ -30,7 +30,7 @@ func Contains(str string, slice []string) bool {
 	return false
 }
 
-func FileReader(filename string) []string {
+func FileReader(filename string, trimSpace bool) []string {
 	file, err := os.Open(filename)
 	if err != nil {
 		gologger.Errorf("Open file %s error, %v\n", filename, err)
@@ -40,7 +40,12 @@ func FileReader(filename string) []string {
 	scanner := bufio.NewScanner(file)
 	scanner.Split(bufio.ScanLines)
 	for scanner.Scan() {
-		text := strings.TrimSpace(scanner.Text())
+		text := ""
+		if trimSpace {
+			text = strings.TrimSpace(scanner.Text())
+		} else {
+			text = scanner.Text()
+		}
 		if text != "" {
 			content = append(content, scanner.Text())
 		}

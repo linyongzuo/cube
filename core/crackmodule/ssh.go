@@ -59,7 +59,9 @@ func (sshCrack SshCrack) Exec() (crackResult CrackResult) {
 	}
 	return crackResult
 }
-
+func (sshCrack SshCrack) CrackMatch() (bool, string) {
+	return true, ""
+}
 func init() {
 	AddCrackKeys("ssh")
 }

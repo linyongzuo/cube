@@ -61,7 +61,9 @@ func (e Elastic) Exec() CrackResult {
 	}
 	return result
 }
-
+func (e Elastic) CrackMatch() (bool, string) {
+	return true, ""
+}
 func init() {
 	AddCrackKeys("elastic")
 }

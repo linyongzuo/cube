@@ -70,8 +70,8 @@ func (cp *CrackOption) ParseAuth() []Auth {
 	userFile := cp.UserFile
 	pass := cp.Pass
 	passFile := cp.PassFile
-	us := opt2slice(user, userFile)
-	ps := opt2slice(pass, passFile)
+	us := opt2slice(user, userFile, true)
+	ps := opt2slice(pass, passFile, false)
 
 	for _, u := range us {
 		for _, p := range ps {
@@ -86,7 +86,7 @@ func (cp *CrackOption) ParseAuth() []Auth {
 
 func (cp *CrackOption) ParseSql() []string {
 	if len(cp.SqlFile) != 0 {
-		return pkg.FileReader(cp.SqlFile)
+		return pkg.FileReader(cp.SqlFile, false)
 	}
 	return []string{}
 }
@@ -96,6 +96,9 @@ func (cp *CrackOption) ParseIP() []string {
 	fp := cp.IpFile
 	if ip != "" {
 		hosts = ExpandIp(ip)
+		if len(hosts) == 0 {
+			os.Exit(1)
+		}
 	}
 
 	if fp != "" {
@@ -121,7 +124,7 @@ func (cp *CrackOption) ParsePort() bool {
 func (cp *CrackOption) GetTimeout() string {
 	return cp.Timeout
 }
-func opt2slice(str, file string) []string {
+func opt2slice(str, file string, trimSpace bool) []string {
 	if len(str+file) == 0 {
 		gologger.Errorf("Provide login name(-l/-L) and login password(-p/-P)")
 	}
@@ -130,7 +133,7 @@ func opt2slice(str, file string) []string {
 
 		return r
 	}
-	r := pkg.FileReader(file)
+	r := pkg.FileReader(file, trimSpace)
 	return r
 }
 
@@ -138,7 +141,8 @@ func ExpandIp(ip string) (hosts []string) {
 
 	list, err := iprange.ParseList(ip)
 	if err != nil {
-		gologger.Errorf("IP parsing error\nformat: 10.0.0.1, 10.0.0.5-10, 192.168.1.*, 192.168.10.0/24")
+		gologger.Warnf("IP parsing error\nformat: 10.0.0.1, 10.0.0.5-10, 192.168.1.*, 192.168.10.0/24")
+		return
 	}
 	rng := list.Expand()
 	for _, v := range rng {
@@ -159,9 +163,23 @@ func ReadIPFile(filename string) ([]string, error) {
 	scanner := bufio.NewScanner(file)
 	scanner.Split(bufio.ScanLines)
 	for scanner.Scan() {
-		text := strings.TrimSpace(scanner.Text())
+		text := scanner.Text()
 		if text != "" {
-			host := ExpandIp(text)
+			all := strings.Split(text, " ")
+			ip := ""
+			if len(all) == 1 {
+				ip = strings.TrimSpace(all[0])
+			} else {
+				if len(all) >= 4 {
+					ip = all[3]
+				} else {
+					continue
+				}
+			}
+			host := ExpandIp(ip)
+			if len(host) == 0 {
+				continue
+			}
 			content = append(content, host...)
 		}
 	}

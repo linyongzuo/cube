@@ -41,8 +41,10 @@ func (m *Mssql) CrackPortCheck() bool {
 func (m *Mssql) Exec() CrackResult {
 	result := CrackResult{Crack: *m.Crack, Result: false, Err: nil}
 	start := time.Now()
-	dataSourceName := fmt.Sprintf("sqlserver://%s:%s@%s:%s?database=master&connection+timeout=%d&encrypt=disable", m.Auth.User, m.Auth.Password, m.Ip,
-		m.Port, m.Timeout)
+	//dataSourceName := fmt.Sprintf("sqlserver://%s:%s@%s:%s?database=master&connection+timeout=%d&encrypt=disable", m.Auth.User, m.Auth.Password, m.Ip,
+	//	m.Port, m.Timeout)
+	dataSourceName := fmt.Sprintf("server=%v;port=%v;user id=%v;password=%v;database=%v;dial timeout=%d;encrypt=disable", m.Ip,
+		m.Port, m.Auth.User, m.Auth.Password, "master", m.Timeout)
 	db, err := sql.Open("mssql", dataSourceName)
 	if err == nil {
 		defer db.Close()
@@ -71,7 +73,13 @@ func (m *Mssql) Exec() CrackResult {
 	result.CostTime = time.Now().Sub(start).Seconds()
 	return result
 }
-
+func (m *Mssql) CrackMatch() (bool, string) {
+	result := m.Exec()
+	if !result.Result {
+		return IsMssql(result.Extra), result.Extra
+	}
+	return result.Result, result.Extra
+}
 func init() {
 	AddCrackKeys("mssql")
 }

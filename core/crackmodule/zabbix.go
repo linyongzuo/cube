@@ -99,7 +99,9 @@ func (z Zabbix) Exec() CrackResult {
 
 	return result
 }
-
+func (z Zabbix) CrackMatch() (bool, string) {
+	return true, ""
+}
 func init() {
 	AddCrackKeys("zabbix")
 }

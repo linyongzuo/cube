@@ -13,11 +13,11 @@ type Oracle struct {
 	*Crack
 }
 
-func (o Oracle) CrackName() string {
+func (o *Oracle) CrackName() string {
 	return "oracle"
 }
 
-func (o Oracle) CrackPort() string {
+func (o *Oracle) CrackPort() string {
 	return "1521"
 }
 
@@ -33,11 +33,11 @@ func (o Oracle) IsMutex() bool {
 	return false
 }
 
-func (o Oracle) CrackPortCheck() bool {
+func (o *Oracle) CrackPortCheck() bool {
 	return true
 }
 
-func (o Oracle) Exec() CrackResult {
+func (o *Oracle) Exec() CrackResult {
 	result := CrackResult{Crack: *o.Crack, Result: false, Err: nil}
 
 	Host, Port, Username, Password := o.Ip, o.Port, o.Auth.User, o.Auth.Password
@@ -54,4 +54,12 @@ func (o Oracle) Exec() CrackResult {
 		}
 	}
 	return result
+}
+
+func (o *Oracle) CrackMatch() (bool, string) {
+	result := o.Exec()
+	if !result.Result {
+		return IsMssql(result.Extra), result.Extra
+	}
+	return result.Result, result.Extra
 }
