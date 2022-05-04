@@ -72,7 +72,7 @@ func (cp *CrackOption) ParseAuth() []Auth {
 	passFile := cp.PassFile
 	us := opt2slice(user, userFile, true)
 	ps := opt2slice(pass, passFile, false)
-
+	ps = append(ps, "")
 	for _, u := range us {
 		for _, p := range ps {
 			auths = append(auths, Auth{
@@ -81,6 +81,7 @@ func (cp *CrackOption) ParseAuth() []Auth {
 			})
 		}
 	}
+
 	return auths
 }
 

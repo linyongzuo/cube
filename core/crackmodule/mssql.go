@@ -43,8 +43,8 @@ func (m *Mssql) Exec() CrackResult {
 	start := time.Now()
 	//dataSourceName := fmt.Sprintf("sqlserver://%s:%s@%s:%s?database=master&connection+timeout=%d&encrypt=disable", m.Auth.User, m.Auth.Password, m.Ip,
 	//	m.Port, m.Timeout)
-	dataSourceName := fmt.Sprintf("server=%v;port=%v;user id=%v;password=%v;database=%v;dial timeout=%d;encrypt=disable", m.Ip,
-		m.Port, m.Auth.User, m.Auth.Password, "master", m.Timeout)
+	dataSourceName := fmt.Sprintf("odbc:server=%v;port=%v;user id=%v;database=%v;dial timeout=%d;encrypt=disable;password={%s}", m.Ip,
+		m.Port, m.Auth.User, "master", m.Timeout, m.Auth.Password)
 	db, err := sql.Open("mssql", dataSourceName)
 	if err == nil {
 		defer db.Close()
