@@ -1,1 +1,5 @@
 select * from SYSOBJECTS WHERE xtype = 'U';
+SELECT @@VERSION
+exec xp_msver
+123
+456

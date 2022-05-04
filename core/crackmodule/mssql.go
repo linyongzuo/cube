@@ -57,10 +57,10 @@ func (m *Mssql) Exec() CrackResult {
 				for _, v := range m.Sql {
 					_, err = db.ExecContext(ctx, v)
 					if err != nil {
-						gologger.Infof("执行sql语句:%s 失败，数据库信息:%v,错误原因:%s", v, *m, err.Error())
-						break
+						gologger.Infof("执行sql语句:%s 失败，数据库信息:%s:%s,错误原因:%s", v, m.Ip, m.Port, err.Error())
+						continue
 					} else {
-						gologger.Infof("执行sql语句:%s 成功，数据库信息:%v", v, *m)
+						gologger.Infof("执行sql语句:%s 成功，数据库信息:%s:%s", v, m.Ip, m.Port)
 					}
 				}
 			}
