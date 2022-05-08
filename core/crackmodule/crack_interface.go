@@ -118,7 +118,7 @@ func IsMssql(errMsg string) bool {
 }
 
 func IsPostgres(errMsg string) bool {
-	return strings.Contains(errMsg, "login error")
+	return strings.Contains(errMsg, "pq: password authentication failed for user")
 }
 func getPluginAuthUser(s string) []string {
 	c := NewCrack(s)

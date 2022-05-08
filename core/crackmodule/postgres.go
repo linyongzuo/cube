@@ -41,8 +41,8 @@ func (p *Postgres) CrackPortCheck() bool {
 func (p *Postgres) Exec() CrackResult {
 	result := CrackResult{Crack: *p.Crack, Result: false, Err: nil}
 
-	dataSourceName := fmt.Sprintf("postgres://%v:%v@%v:%v/%v?sslmode=%v", p.Auth.User,
-		p.Auth.Password, p.Ip, p.Port, "postgres", "disable")
+	dataSourceName := fmt.Sprintf("postgres://%v:%v@%v:%v/%v?sslmode=%v&connect_timeout=%d", p.Auth.User,
+		p.Auth.Password, p.Ip, p.Port, "postgres", "disable", p.Timeout)
 	db, err := sql.Open("postgres", dataSourceName)
 
 	if err == nil {

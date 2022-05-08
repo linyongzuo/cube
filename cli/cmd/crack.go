@@ -9,7 +9,6 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
-	"time"
 )
 
 var crackCli *cobra.Command
@@ -25,25 +24,14 @@ func runCrack(cmd *cobra.Command, args []string) {
 	// 如果是等待信号退出
 
 	if globalOpts.Waiting {
-		ipCheckTicker := time.NewTicker(time.Second * 30)
-		go func() {
-			go crackmodule.StartCrack(opt, globalOpts)
-			for {
-				select {
-				case <-ipCheckTicker.C:
-					crackmodule.StartCrack(opt, globalOpts)
-				default:
-					time.Sleep(1 * time.Second)
-				}
-			}
-		}()
+		crackmodule.StartCrack(opt, globalOpts)
 
 		c := make(chan os.Signal)
 		// 监听指定信号
 		signal.Notify(c, syscall.SIGHUP, syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT)
 		gologger.Info("启动定时监控ip文件")
 		<-c
-		ipCheckTicker.Stop()
+		//ipCheckTicker.Stop()
 		crackmodule.Close(opt, globalOpts)
 		gologger.Error("收到退出程序命令")
 	} else {

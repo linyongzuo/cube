@@ -11,14 +11,12 @@ import (
 	"cube/report"
 	"fmt"
 	"github.com/olekukonko/tablewriter"
-	ants "github.com/panjf2000/ants/v2"
 	"github.com/pkg/errors"
 	"io"
 	"os"
 	"strconv"
 	"strings"
 	"sync"
-	"sync/atomic"
 	"time"
 )
 
@@ -27,11 +25,8 @@ var SuccessHash = struct {
 	S map[string]bool
 }{S: make(map[string]bool)}
 
-var pool *ants.Pool
-var poolInit sync.Once
 var failedFile *os.File
 var invalidFile *os.File
-var running int64 = 0
 
 func MD5(s string) (m string) {
 	h := md5.New()
@@ -103,7 +98,7 @@ func SetResultMap(r CrackResult) {
 func GetFinishTime(t1 time.Time) {
 
 	fmt.Println(strings.Repeat(">", 50))
-	End := time.Now().Format("2006-01-02 15:04:05")
+	End := time.Now().Format("2006-01-02_15:04:05")
 	fmt.Printf("Finished: %s  Cost: %s\n", End, time.Since(t1))
 
 }
@@ -195,15 +190,28 @@ func runSingleTask(ctx context.Context, crackTasksChan chan Crack, wg *sync.Wait
 		}
 	}
 }
+func IsExists(path string) (os.FileInfo, bool) {
+	f, err := os.Stat(path)
+	return f, err == nil || os.IsExist(err)
+}
+func IsFile(path string) (os.FileInfo, bool) {
+	f, flag := IsExists(path)
+	return f, flag && !f.IsDir()
+}
 
+func OpenFile(path string) (f *os.File, err error) {
+	_, b := IsFile(path)
+	if b {
+		//打开文件，
+		f, _ = os.OpenFile(path, os.O_APPEND|os.O_WRONLY, os.ModeAppend)
+	} else {
+		//新建文件
+		f, err = os.Create(path)
+	}
+	return
+}
 func StartCrack(opt *CrackOption, globalopt *core.GlobalOption) {
 	gologger.Debug("检测开始执行")
-	if atomic.LoadInt64(&running) == 1 {
-		gologger.Debug("检测正在运行，等待运行完成")
-		return
-	}
-	atomic.AddInt64(&running, 1)
-	defer atomic.AddInt64(&running, -1)
 	var (
 		crackPlugins []string
 		crackIPS     []string
@@ -230,16 +238,7 @@ func StartCrack(opt *CrackOption, globalopt *core.GlobalOption) {
 		threadNum = 1
 		gologger.Infof("Running in single thread mode when --delay is set")
 	}
-	start := time.Now().Format("2006-01-02 15:04:05")
-	var err error
-	failedFile, err = os.Create("测试失败_" + start + ".txt")
-	if err != nil {
-		gologger.Errorf("创建文件失败:%s", err.Error())
-	}
-	invalidFile, err = os.Create("非数据库地址_" + start + ".txt")
-	if err != nil {
-		gologger.Errorf("创建文件失败:%s", err.Error())
-	}
+
 	crackPlugins = opt.ParsePluginName()
 	if len(crackPlugins) == 0 {
 		gologger.Errorf("plug doesn't exist: %s", opt.PluginName)
@@ -263,17 +262,33 @@ func StartCrack(opt *CrackOption, globalopt *core.GlobalOption) {
 			}
 		}
 		if len(ips) == 0 {
-			gologger.Infof("没有检测到新增有效IP")
-			return
+			gologger.Infof("从文件读取ip的长度是0")
+			time.Sleep(1 * time.Second)
+			StartCrack(opt, globalopt)
 		}
+		var err error
+		invalidFile, err = OpenFile("非数据库地址.txt")
+		if err != nil {
+			gologger.Errorf("创建文件失败:%s", err.Error())
+		}
+		//invalidFileWriter = bufio.NewWriter(invalidFile)
+		failedFile, err = OpenFile("测试失败.txt")
+		if err != nil {
+			gologger.Errorf("创建文件失败:%s", err.Error())
+		}
+		//failedFileWriter = bufio.NewWriter(failedFile)
 		aliveIPS = CheckPortNew(ctx, threadNum, delay, ips, timeout)
 	}
+
 	if len(aliveIPS) == 0 {
 		gologger.Infof("没有检测到新增有效IP")
+		time.Sleep(1 * time.Second)
+		StartCrack(opt, globalopt)
 		return
 	} else {
 		gologger.Infof("检测有效IP信息:%+v", aliveIPS)
 	}
+
 	sql := opt.ParseSql()
 	if len(opt.User+opt.UserFile+opt.Pass+opt.PassFile) > 0 {
 		crackAuths = opt.ParseAuth()
@@ -293,9 +308,9 @@ func StartCrack(opt *CrackOption, globalopt *core.GlobalOption) {
 		wg.Add(1)
 		taskChan <- task
 	}
-	//wg.Wait()
+	wg.Wait()
 
-	WaitThreadTimeout(&wg, config.ThreadTimeout)
+	//WaitThreadTimeout(&wg, config.ThreadTimeout)
 	ccs := report.RemoveDuplicateCSS(report.CsvShells)
 	r := report.RemoveDuplicateResult(ccs)
 	for _, v := range r {
@@ -330,12 +345,16 @@ func StartCrack(opt *CrackOption, globalopt *core.GlobalOption) {
 	ClearHash()
 	//
 
-	if failedFile != nil {
-		failedFile.Close()
-	}
 	if invalidFile != nil {
+		//invalidFileWriter.Flush()
 		invalidFile.Close()
 	}
+	if failedFile != nil {
+		//failedFileWriter.Flush()
+		failedFile.Close()
+	}
+	time.Sleep(1 * time.Second)
+	StartCrack(opt, globalopt)
 }
 
 func Close(opt *CrackOption, globalopt *core.GlobalOption) {

@@ -6,6 +6,7 @@ import (
 	"cube/gologger"
 	"cube/pkg"
 	"github.com/malfunkt/iprange"
+	"io"
 	"os"
 	"strconv"
 	"strings"
@@ -195,9 +196,6 @@ func ReadIPFile(filename string) ([]string, error) {
 			content = append(content, host...)
 		}
 	}
-	// 清空文件
-	err = file.Truncate(0)
-	_, err = file.Seek(0, 0)
 	return content, nil
 }
 
@@ -205,14 +203,18 @@ func ReadIPAddrFromFile(filename string) ([]IpAddr, error) {
 	file, err := os.OpenFile(filename, os.O_RDWR, 0766)
 	if err != nil {
 		gologger.Debugf("Open %s error, %s\n", filename, err)
+		return []IpAddr{}, nil
 	}
 	defer file.Close()
+	br := bufio.NewReader(file)
 	var content []IpAddr
-	scanner := bufio.NewScanner(file)
-	scanner.Split(bufio.ScanLines)
-	for scanner.Scan() {
-		text := scanner.Text()
-		if text != "" {
+	for {
+		a, _, c := br.ReadLine()
+		if c == io.EOF {
+			break
+		}
+		text := string(a)
+		if text != "" && strings.Contains(text, ".") {
 			all := strings.Split(text, " ")
 			ip := ""
 			port := ""
@@ -230,7 +232,7 @@ func ReadIPAddrFromFile(filename string) ([]IpAddr, error) {
 			switch port {
 			case "1433":
 				name = "mssql"
-			case "5631":
+			case "5631", "5432":
 				name = "postgres"
 			default:
 				continue
@@ -242,8 +244,27 @@ func ReadIPAddrFromFile(filename string) ([]IpAddr, error) {
 			})
 		}
 	}
+
+	//scanner := bufio.NewScanner(file)
+	//err = scanner.Err()
+	//if err != nil {
+	//	gologger.Debugf("scan %s error, %s\n", filename, err)
+	//}
+	//scanner.Split(bufio.ScanLines)
+	//for scanner.Scan() {
+	//
+	//}
 	// 清空文件
-	err = file.Truncate(0)
-	_, err = file.Seek(0, 0)
+	if len(content) != 0 {
+		err = file.Truncate(0)
+		if err != nil {
+			gologger.Warnf("Truncate failed:%s", err.Error())
+		}
+		_, err = file.Seek(0, 0)
+		if err != nil {
+			gologger.Warnf("Seek failed:%s", err.Error())
+		}
+	}
+
 	return content, nil
 }
