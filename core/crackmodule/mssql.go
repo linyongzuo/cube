@@ -39,12 +39,13 @@ func (m *Mssql) CrackPortCheck() bool {
 }
 
 func (m *Mssql) Exec() CrackResult {
+	//gologger.Debugf("exec begin")
 	result := CrackResult{Crack: *m.Crack, Result: false, Err: nil}
 	start := time.Now()
 	//dataSourceName := fmt.Sprintf("sqlserver://%s:%s@%s:%s?database=master&connection+timeout=%d&encrypt=disable", m.Auth.User, m.Auth.Password, m.Ip,
 	//	m.Port, m.Timeout)
-	dataSourceName := fmt.Sprintf("odbc:server=%v;port=%v;user id=%v;database=%v;dial timeout=%d;encrypt=disable;password={%s}", m.Ip,
-		m.Port, m.Auth.User, "master", m.Timeout, m.Auth.Password)
+	dataSourceName := fmt.Sprintf("odbc:server=%v;port=%v;user id=%v;database=%v;dial timeout=%d;encrypt=disable;connection timeout=%d;password={%s}", m.Ip,
+		m.Port, m.Auth.User, "master", m.Timeout, m.Timeout, m.Auth.Password)
 	db, err := sql.Open("mssql", dataSourceName)
 	if err == nil {
 		defer db.Close()

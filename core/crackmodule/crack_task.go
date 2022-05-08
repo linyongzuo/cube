@@ -18,6 +18,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 )
 
@@ -30,6 +31,7 @@ var pool *ants.Pool
 var poolInit sync.Once
 var failedFile *os.File
 var invalidFile *os.File
+var running int64 = 0
 
 func MD5(s string) (m string) {
 	h := md5.New()
@@ -52,6 +54,12 @@ func CheckTaskHash(hash string) bool {
 func SetTaskHash(hash string) {
 	SuccessHash.Lock()
 	SuccessHash.S[hash] = true
+	SuccessHash.Unlock()
+}
+
+func ClearHash() {
+	SuccessHash.Lock()
+	SuccessHash.S = map[string]bool{}
 	SuccessHash.Unlock()
 }
 
@@ -189,7 +197,13 @@ func runSingleTask(ctx context.Context, crackTasksChan chan Crack, wg *sync.Wait
 }
 
 func StartCrack(opt *CrackOption, globalopt *core.GlobalOption) {
-
+	gologger.Debug("检测开始执行")
+	if atomic.LoadInt64(&running) == 1 {
+		gologger.Debug("检测正在运行，等待运行完成")
+		return
+	}
+	atomic.AddInt64(&running, 1)
+	defer atomic.AddInt64(&running, -1)
 	var (
 		crackPlugins []string
 		crackIPS     []string
@@ -216,18 +230,16 @@ func StartCrack(opt *CrackOption, globalopt *core.GlobalOption) {
 		threadNum = 1
 		gologger.Infof("Running in single thread mode when --delay is set")
 	}
-	poolInit.Do(func() {
-		pool, _ = ants.NewPool(threadNum)
-		var err error
-		failedFile, err = os.Create("测试失败.txt")
-		if err != nil {
-			gologger.Errorf("创建文件失败:%s", err.Error())
-		}
-		invalidFile, err = os.Create("非数据库地址.txt")
-		if err != nil {
-			gologger.Errorf("创建文件失败:%s", err.Error())
-		}
-	})
+	start := time.Now().Format("2006-01-02 15:04:05")
+	var err error
+	failedFile, err = os.Create("测试失败_" + start + ".txt")
+	if err != nil {
+		gologger.Errorf("创建文件失败:%s", err.Error())
+	}
+	invalidFile, err = os.Create("非数据库地址_" + start + ".txt")
+	if err != nil {
+		gologger.Errorf("创建文件失败:%s", err.Error())
+	}
 	crackPlugins = opt.ParsePluginName()
 	if len(crackPlugins) == 0 {
 		gologger.Errorf("plug doesn't exist: %s", opt.PluginName)
@@ -265,7 +277,7 @@ func StartCrack(opt *CrackOption, globalopt *core.GlobalOption) {
 	} else {
 		crackTasks = buildDefaultTasks(aliveIPS, timeout, sql)
 	}
-
+	gologger.Infof("新增任务数量:%d", len(crackTasks))
 	var wg sync.WaitGroup
 	taskChan := make(chan Crack, threadNum*2)
 	for i := 0; i < threadNum; i++ {
@@ -310,6 +322,16 @@ func StartCrack(opt *CrackOption, globalopt *core.GlobalOption) {
 		}
 	}
 	GetFinishTime(t1)
+	// 清理内存，标志修改
+	ClearHash()
+	//
+
+	if failedFile != nil {
+		failedFile.Close()
+	}
+	if invalidFile != nil {
+		invalidFile.Close()
+	}
 }
 
 func Close(opt *CrackOption, globalopt *core.GlobalOption) {

@@ -159,6 +159,7 @@ func WriteExportExcel(ccs []CsvCell, fp string) {
 	if err := excel.SaveAs(fp); err != nil {
 		gologger.Errorf("write to %s error: %s", fp, err)
 	}
+	excel.Close()
 }
 
 func ReadExportExcel(fp string) (ccs []CsvCell) {

@@ -155,7 +155,7 @@ func ExpandIp(ip string) (hosts []string) {
 }
 
 func ReadIPFile(filename string) ([]string, error) {
-	file, err := os.Open(filename)
+	file, err := os.OpenFile(filename, os.O_RDWR, 0766)
 	if err != nil {
 		gologger.Debugf("Open %s error, %s\n", filename, err)
 	}
@@ -184,5 +184,8 @@ func ReadIPFile(filename string) ([]string, error) {
 			content = append(content, host...)
 		}
 	}
+	// 清空文件
+	err = file.Truncate(0)
+	_, err = file.Seek(0, 0)
 	return content, nil
 }

@@ -29,20 +29,20 @@ func CheckPort(ctx context.Context, threadNum int, delay float64, ips []string, 
 	var ipList []IpAddr
 	if len(port) > 0 {
 		for _, ip := range ips {
-			key := fmt.Sprintf("%s:%s:%s", ip, port, pluginNames[0])
+			//key := fmt.Sprintf("%s:%s:%s", ip, port, pluginNames[0])
 			tmp := IpAddr{
 				Ip:         ip,
 				Port:       port,
 				PluginName: pluginNames[0],
 			}
-			checkMapLock.Lock()
-			if _, ok := CheckMap[key]; !ok {
-				CheckMap[key] = tmp
-				checkMapLock.Unlock()
-			} else {
-				checkMapLock.Unlock()
-				continue
-			}
+			//checkMapLock.Lock()
+			//if _, ok := CheckMap[key]; !ok {
+			//	CheckMap[key] = tmp
+			//	checkMapLock.Unlock()
+			//} else {
+			//	checkMapLock.Unlock()
+			//	continue
+			//}
 			ipList = append(ipList, tmp)
 		}
 	} else {
@@ -54,15 +54,15 @@ func CheckPort(ctx context.Context, threadNum int, delay float64, ips []string, 
 					Port:       crackPort,
 					PluginName: plugin,
 				}
-				checkMapLock.Lock()
-				key := fmt.Sprintf("%s:%s:%s", ip, crackPort, plugin)
-				if _, ok := CheckMap[key]; !ok {
-					CheckMap[key] = tmp
-					checkMapLock.Unlock()
-				} else {
-					checkMapLock.Unlock()
-					continue
-				}
+				//checkMapLock.Lock()
+				//key := fmt.Sprintf("%s:%s:%s", ip, crackPort, plugin)
+				//if _, ok := CheckMap[key]; !ok {
+				//	CheckMap[key] = tmp
+				//	checkMapLock.Unlock()
+				//} else {
+				//	checkMapLock.Unlock()
+				//	continue
+				//}
 				ipList = append(ipList, tmp)
 			}
 		}
@@ -149,7 +149,6 @@ func SaveAddr(alive bool, addr IpAddr) {
 	if alive {
 		AliveAddr[key] = addr
 	}
-
 }
 
 func GetAliveAddr() []IpAddr {

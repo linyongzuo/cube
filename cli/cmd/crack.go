@@ -27,10 +27,14 @@ func runCrack(cmd *cobra.Command, args []string) {
 	if globalOpts.Waiting {
 		ipCheckTicker := time.NewTicker(time.Second * 30)
 		go func() {
-			crackmodule.StartCrack(opt, globalOpts)
+			go crackmodule.StartCrack(opt, globalOpts)
 			for {
-				<-ipCheckTicker.C
-				crackmodule.StartCrack(opt, globalOpts)
+				select {
+				case <-ipCheckTicker.C:
+					crackmodule.StartCrack(opt, globalOpts)
+				default:
+					time.Sleep(1 * time.Second)
+				}
 			}
 		}()
 
