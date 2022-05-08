@@ -116,6 +116,10 @@ func NeedDatabaseCrack(addr IpAddr, timeout int64) (bool, string) {
 func IsMssql(errMsg string) bool {
 	return strings.Contains(errMsg, "login error")
 }
+
+func IsPostgres(errMsg string) bool {
+	return strings.Contains(errMsg, "login error")
+}
 func getPluginAuthUser(s string) []string {
 	c := NewCrack(s)
 	ic := c.NewICrack()

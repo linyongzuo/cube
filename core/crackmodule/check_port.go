@@ -120,7 +120,61 @@ func CheckPort(ctx context.Context, threadNum int, delay float64, ips []string, 
 
 	return GetAliveAddr()
 }
+func CheckPortNew(ctx context.Context, threadNum int, delay float64, ipList []IpAddr, timeout int64) []IpAddr {
+	//指定插件端口的时候，只允许加载一个插件
 
+	if len(ipList) == 0 {
+		return []IpAddr{}
+	}
+	var addrChan = make(chan IpAddr, len(ipList)*2)
+	var wg sync.WaitGroup
+	wg.Add(len(ipList))
+
+	for i := 0; i < threadNum; i++ {
+		go func() {
+			for {
+				select {
+				case <-ctx.Done():
+					return
+				case addr, ok := <-addrChan:
+					if !ok {
+						return
+					}
+					if NeedPortCheck(addr.PluginName) || GetMutexStatus(addr.PluginName) {
+						//TCP的时候是需要先端口检查,UDP跳过
+						alive, msg := NeedDatabaseCrack(addr, timeout)
+						if !alive {
+							alive = false
+							_, err := invalidFile.WriteString(fmt.Sprintf("错误的数据库IP地址:%s:%s,错误信息:%s\n", addr.Ip, addr.Port, msg))
+							if err != nil {
+								gologger.Warnf("写入文件失败:%s", err.Error())
+							}
+						} else {
+							gologger.Infof("正确的数据库地址: %s:%s", addr.Ip, addr.Port)
+						}
+						SaveAddr(alive, addr)
+					} else {
+						gologger.Debugf("skip port check for %s", addr.PluginName)
+						SaveAddr(true, addr)
+					}
+					wg.Done()
+					select {
+					case <-ctx.Done():
+					case <-time.After(time.Duration(core.RandomDelay(delay)) * time.Second):
+					}
+				}
+			}
+		}()
+	}
+
+	for _, addr := range ipList {
+		addrChan <- addr
+	}
+	close(addrChan)
+	wg.Wait()
+
+	return GetAliveAddr()
+}
 func check(addr IpAddr) (bool, IpAddr) {
 	alive := false
 	gologger.Debugf("port conn check: %s://%s:%s", addr.PluginName, addr.Ip, addr.Port)

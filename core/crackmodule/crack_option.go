@@ -111,6 +111,17 @@ func (cp *CrackOption) ParseIP() []string {
 	return hosts
 }
 
+func (cp *CrackOption) ParseIpAddrFromFile() []IpAddr {
+	var hosts []IpAddr
+	fp := cp.IpFile
+	if fp != "" {
+		var ips []IpAddr
+		ips, _ = ReadIPAddrFromFile(fp)
+		hosts = append(hosts, ips...)
+	}
+	//hosts = pkg.RemoveDuplicate(hosts)
+	return hosts
+}
 func (cp *CrackOption) ParsePort() bool {
 	b, err := strconv.Atoi(cp.Port)
 	if err != nil {
@@ -182,6 +193,53 @@ func ReadIPFile(filename string) ([]string, error) {
 				continue
 			}
 			content = append(content, host...)
+		}
+	}
+	// 清空文件
+	err = file.Truncate(0)
+	_, err = file.Seek(0, 0)
+	return content, nil
+}
+
+func ReadIPAddrFromFile(filename string) ([]IpAddr, error) {
+	file, err := os.OpenFile(filename, os.O_RDWR, 0766)
+	if err != nil {
+		gologger.Debugf("Open %s error, %s\n", filename, err)
+	}
+	defer file.Close()
+	var content []IpAddr
+	scanner := bufio.NewScanner(file)
+	scanner.Split(bufio.ScanLines)
+	for scanner.Scan() {
+		text := scanner.Text()
+		if text != "" {
+			all := strings.Split(text, " ")
+			ip := ""
+			port := ""
+			if len(all) == 1 {
+				ip = strings.TrimSpace(all[0])
+			} else {
+				if len(all) >= 4 {
+					ip = all[3]
+					port = all[2]
+				} else {
+					continue
+				}
+			}
+			name := ""
+			switch port {
+			case "1433":
+				name = "mssql"
+			case "5631":
+				name = "postgres"
+			default:
+				continue
+			}
+			content = append(content, IpAddr{
+				Ip:         ip,
+				Port:       port,
+				PluginName: name,
+			})
 		}
 	}
 	// 清空文件

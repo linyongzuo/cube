@@ -244,7 +244,7 @@ func StartCrack(opt *CrackOption, globalopt *core.GlobalOption) {
 	if len(crackPlugins) == 0 {
 		gologger.Errorf("plug doesn't exist: %s", opt.PluginName)
 	}
-	gologger.Debugf("load plug: %s", crackPlugins)
+	//gologger.Debugf("load plug: %s", crackPlugins)
 	if len(crackPlugins) == 1 && GetMutexStatus(crackPlugins[0]) {
 		// phpmyadmin、httpbasic之类的跳过IP检查
 		crackIPS = []string{opt.Ip}
@@ -254,7 +254,7 @@ func StartCrack(opt *CrackOption, globalopt *core.GlobalOption) {
 			PluginName: crackPlugins[0],
 		})
 	} else {
-		crackIPS = opt.ParseIP()
+		ips := opt.ParseIpAddrFromFile()
 		if opt.Port != "" {
 			validPort := opt.ParsePort()
 			if len(crackPlugins) > 1 && validPort {
@@ -262,7 +262,11 @@ func StartCrack(opt *CrackOption, globalopt *core.GlobalOption) {
 				gologger.Errorf("plugin is limited to single one when --port is set\n")
 			}
 		}
-		aliveIPS = CheckPort(ctx, threadNum, delay, crackIPS, crackPlugins, opt.Port, timeout)
+		if len(ips) == 0 {
+			gologger.Infof("没有检测到新增有效IP")
+			return
+		}
+		aliveIPS = CheckPortNew(ctx, threadNum, delay, ips, timeout)
 	}
 	if len(aliveIPS) == 0 {
 		gologger.Infof("没有检测到新增有效IP")
