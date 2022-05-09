@@ -11,7 +11,6 @@ import (
 	"cube/report"
 	"fmt"
 	"github.com/olekukonko/tablewriter"
-	"github.com/pkg/errors"
 	"io"
 	"os"
 	"strconv"
@@ -27,6 +26,7 @@ var SuccessHash = struct {
 
 var failedFile *os.File
 var invalidFile *os.File
+var sucFile *os.File
 
 func MD5(s string) (m string) {
 	h := md5.New()
@@ -146,13 +146,18 @@ func buildTasks(AliveIPS []IpAddr, auths []Auth, timeout int64, sql []string) (c
 
 func saveCrackResult(crackResult CrackResult) {
 	if crackResult.Result {
-		gologger.Infof("Successful: IP:%s  Port:%s  Login:%s  Pass:%s", crackResult.Crack.Ip, crackResult.Crack.Port, crackResult.Crack.Auth.User, crackResult.Crack.Auth.Password)
+		if sucFile != nil {
+			_, err := sucFile.WriteString(fmt.Sprintf("测试成功: IP:%s  Port:%s  Login:%s  Pass:%s,插件名称:%s---\n", crackResult.Crack.Ip, crackResult.Crack.Port, crackResult.Crack.Auth.User, crackResult.Crack.Auth.Password, crackResult.Crack.Name))
+			if err != nil {
+				gologger.Warnf("saveCrackResult write failed:%s", err.Error())
+			}
+		}
 		k := fmt.Sprintf("%v-%v-%v", crackResult.Crack.Ip, crackResult.Crack.Port, crackResult.Crack.Name)
 		h := MakeTaskHash(k)
 		SetTaskHash(h)
 		//s1 := fmt.Sprintf("[+]: %s://%s:%s %s", taskResult.CrackTask.CrackPlugin, taskResult.CrackTask.Ip, taskResult.CrackTask.Port, taskResult.Result)
 		//fmt.Println(s1)
-		SetResultMap(crackResult)
+		//SetResultMap(crackResult)
 	}
 }
 
@@ -220,15 +225,15 @@ func StartCrack(opt *CrackOption, globalopt *core.GlobalOption) {
 		threadNum    int
 		delay        float64
 		aliveIPS     []IpAddr
-		fp           string
-		timeout      int64
+		//fp           string
+		timeout int64
 	)
 
 	ctx := context.Background()
 	t1 := time.Now()
 	delay = globalopt.Delay
 	threadNum = globalopt.Threads
-	fp = globalopt.Output
+	//fp = globalopt.Output
 	timeout, _ = strconv.ParseInt(opt.GetTimeout(), 10, 64)
 	if timeout == 0 {
 		timeout = 4
@@ -276,6 +281,11 @@ func StartCrack(opt *CrackOption, globalopt *core.GlobalOption) {
 		if err != nil {
 			gologger.Errorf("创建文件失败:%s", err.Error())
 		}
+
+		sucFile, err = OpenFile("测试成功.txt")
+		if err != nil {
+			gologger.Errorf("创建文件失败:%s", err.Error())
+		}
 		//failedFileWriter = bufio.NewWriter(failedFile)
 		aliveIPS = CheckPortNew(ctx, threadNum, delay, ips, timeout)
 	}
@@ -309,37 +319,37 @@ func StartCrack(opt *CrackOption, globalopt *core.GlobalOption) {
 		taskChan <- task
 	}
 	wg.Wait()
-
+	close(taskChan)
 	//WaitThreadTimeout(&wg, config.ThreadTimeout)
-	ccs := report.RemoveDuplicateCSS(report.CsvShells)
-	r := report.RemoveDuplicateResult(ccs)
-	for _, v := range r {
-		gologger.Infof("%s", v.Cell)
-	}
-
-	if len(fp) > 0 {
-		if _, err := os.Stat(fp); err == nil {
-			// path/to/whatever exists
-			cs := report.ReadExportExcel(fp)
-			gologger.Infof("Appending result to %s success", fp)
-			for _, v := range cs {
-				report.CsvShells = append(report.CsvShells, v)
-				//gologger.Debugf("Appending %s", v.Ip)
-			}
-			css2 := report.RemoveDuplicateCSS(report.CsvShells)
-			report.WriteExportExcel(css2, fp)
-		} else if errors.Is(err, os.ErrNotExist) {
-			// path/to/whatever does *not* exist
-			report.WriteExportExcel(report.CsvShells, fp)
-			gologger.Infof("Write result to %s success", fp)
-
-		} else {
-			// Schrodinger: file may or may not exist. See err for details.
-
-			// Therefore, do *NOT* use !os.IsNotExist(err) to test for file existence
-			gologger.Errorf("can't find file %s, err: %s", fp, err)
-		}
-	}
+	//ccs := report.RemoveDuplicateCSS(report.CsvShells)
+	//r := report.RemoveDuplicateResult(ccs)
+	//for _, v := range r {
+	//	gologger.Infof("%s", v.Cell)
+	//}
+	//
+	//if len(fp) > 0 {
+	//	if _, err := os.Stat(fp); err == nil {
+	//		// path/to/whatever exists
+	//		cs := report.ReadExportExcel(fp)
+	//		gologger.Infof("Appending result to %s success", fp)
+	//		for _, v := range cs {
+	//			report.CsvShells = append(report.CsvShells, v)
+	//			//gologger.Debugf("Appending %s", v.Ip)
+	//		}
+	//		css2 := report.RemoveDuplicateCSS(report.CsvShells)
+	//		report.WriteExportExcel(css2, fp)
+	//	} else if errors.Is(err, os.ErrNotExist) {
+	//		// path/to/whatever does *not* exist
+	//		report.WriteExportExcel(report.CsvShells, fp)
+	//		gologger.Infof("Write result to %s success", fp)
+	//
+	//	} else {
+	//		// Schrodinger: file may or may not exist. See err for details.
+	//
+	//		// Therefore, do *NOT* use !os.IsNotExist(err) to test for file existence
+	//		gologger.Errorf("can't find file %s, err: %s", fp, err)
+	//	}
+	//}
 	GetFinishTime(t1)
 	// 清理内存，标志修改
 	ClearHash()
@@ -353,7 +363,10 @@ func StartCrack(opt *CrackOption, globalopt *core.GlobalOption) {
 		//failedFileWriter.Flush()
 		failedFile.Close()
 	}
-	time.Sleep(1 * time.Second)
+	if sucFile != nil {
+		sucFile.Close()
+	}
+	time.Sleep(2 * time.Second)
 	StartCrack(opt, globalopt)
 }
 

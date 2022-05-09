@@ -11,7 +11,6 @@ require (
 	github.com/lib/pq v1.10.4
 	github.com/malfunkt/iprange v0.9.0
 	github.com/olekukonko/tablewriter v0.0.5
-	github.com/panjf2000/ants/v2 v2.4.8
 	github.com/pkg/errors v0.9.1
 	github.com/sijms/go-ora/v2 v2.4.4
 	github.com/spf13/cobra v1.1.3
