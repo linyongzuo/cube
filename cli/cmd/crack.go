@@ -20,6 +20,25 @@ const (
 	GUID = 100
 )
 
+func reStart() {
+	if len(os.Args) < 2 {
+		return
+	}
+	newArgs := os.Args[1:]
+	//newOrgs = append(newArgs, "--")
+	//os.Args[1:]
+	startCmd := exec.Command("./cube", newArgs...)
+	startCmd.Stderr = os.Stderr
+	startCmd.Stdin = os.Stdin
+	startCmd.Stdout = os.Stdout
+	startCmd.SysProcAttr = &syscall.SysProcAttr{
+		Setpgid: true,
+		Pgid:    0,
+	}
+	if iErr := startCmd.Start(); iErr != nil {
+		return
+	}
+}
 func runCrack(cmd *cobra.Command, args []string) {
 	globalOpts, opt, _ := parseCrackOptions()
 
@@ -38,20 +57,7 @@ func runCrack(cmd *cobra.Command, args []string) {
 				if len(os.Args) < 2 {
 					return
 				}
-				newArgs := os.Args[1:]
-				//newOrgs = append(newArgs, "--")
-				//os.Args[1:]
-				startCmd := exec.Command("./cube", newArgs...)
-				startCmd.Stderr = os.Stderr
-				startCmd.Stdin = os.Stdin
-				startCmd.Stdout = os.Stdout
-				startCmd.SysProcAttr = &syscall.SysProcAttr{
-					Setpgid: true,
-					Pgid:    0,
-				}
-				if iErr := startCmd.Start(); iErr != nil {
-					panic(iErr)
-				}
+				reStart()
 				time.Sleep(5 * time.Second)
 			}
 		}()

@@ -228,8 +228,6 @@ func StartCrack(opt *CrackOption, globalopt *core.GlobalOption) {
 		//fp           string
 		timeout int64
 	)
-	slice := []string{"1"}
-	gologger.Debugf("test:%s", slice[:3])
 	ctx := context.Background()
 	t1 := time.Now()
 	delay = globalopt.Delay
