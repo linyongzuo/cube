@@ -7,11 +7,18 @@ import (
 	"fmt"
 	"github.com/spf13/cobra"
 	"os"
+	"os/exec"
 	"os/signal"
 	"syscall"
+	"time"
 )
 
 var crackCli *cobra.Command
+
+const (
+	UID  = 501
+	GUID = 100
+)
 
 func runCrack(cmd *cobra.Command, args []string) {
 	globalOpts, opt, _ := parseCrackOptions()
@@ -24,6 +31,30 @@ func runCrack(cmd *cobra.Command, args []string) {
 	// 如果是等待信号退出
 
 	if globalOpts.Waiting {
+		defer func() { //必须要先声明defer，否则不能捕获到panic异常
+			gologger.Info("程序异常捕获")
+			if err := recover(); err != nil {
+				gologger.Debug(err)
+				if len(os.Args) < 2 {
+					return
+				}
+				newArgs := os.Args[1:]
+				//newOrgs = append(newArgs, "--")
+				//os.Args[1:]
+				startCmd := exec.Command("./cube", newArgs...)
+				startCmd.Stderr = os.Stderr
+				startCmd.Stdin = os.Stdin
+				startCmd.Stdout = os.Stdout
+				startCmd.SysProcAttr = &syscall.SysProcAttr{
+					Setpgid: true,
+					Pgid:    0,
+				}
+				if iErr := startCmd.Start(); iErr != nil {
+					panic(iErr)
+				}
+				time.Sleep(5 * time.Second)
+			}
+		}()
 		crackmodule.StartCrack(opt, globalOpts)
 
 		c := make(chan os.Signal)
@@ -127,5 +158,6 @@ cube crack -L user.txt -P pass.txt -s http://127.0.0.1:8080 -x phpmyadmin
 	if err := crackCli.MarkFlagRequired("plugin"); err != nil {
 		gologger.Errorf("error on marking flag as required: %v", err)
 	}
+	gologger.Infof("start\n")
 	rootCmd.AddCommand(crackCli)
 }

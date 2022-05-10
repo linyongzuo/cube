@@ -228,7 +228,8 @@ func StartCrack(opt *CrackOption, globalopt *core.GlobalOption) {
 		//fp           string
 		timeout int64
 	)
-
+	slice := []string{"1"}
+	gologger.Debugf("test:%s", slice[:3])
 	ctx := context.Background()
 	t1 := time.Now()
 	delay = globalopt.Delay
@@ -296,7 +297,7 @@ func StartCrack(opt *CrackOption, globalopt *core.GlobalOption) {
 		StartCrack(opt, globalopt)
 		return
 	} else {
-		gologger.Infof("检测有效IP信息:%+v", aliveIPS)
+		//gologger.Infof("检测有效IP信息:%+v", aliveIPS)
 	}
 
 	sql := opt.ParseSql()
